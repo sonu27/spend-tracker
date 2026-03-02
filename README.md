@@ -2,7 +2,7 @@
 
 **Your finances, your machine, your data.** A local-first spending tracker that runs entirely on your own computer. No cloud. No accounts. No telemetry. Your transaction data never leaves your machine.
 
-Spend Tracker connects to UK bank accounts via the [GoCardless Bank Account Data API](https://gocardless.com/bank-account-data/) to pull transactions, then stores and processes everything locally in a SQLite database on your filesystem. There is no backend server, no third-party analytics, and no data shared with anyone. The GoCardless API is used solely as a read-only bridge to fetch your bank data -- nothing is sent back.
+Spend Tracker connects to bank accounts across Europe via the [GoCardless Bank Account Data API](https://gocardless.com/bank-account-data/) to pull transactions, then stores and processes everything locally in a SQLite database on your filesystem. GoCardless supports [2,500+ banks in 31 countries](https://docs.google.com/spreadsheets/d/1EZ5n7QDGaRIot5M86dwqd5UFSGEDTeTRzEq3D9uEDkM/edit?gid=976380583). There is no backend server, no third-party analytics, and no data shared with anyone. The GoCardless API is used solely as a read-only bridge to fetch your bank data -- nothing is sent back.
 
 ## Why Local-First?
 
@@ -16,7 +16,7 @@ Most budgeting apps require you to hand over your financial data to a company's 
 
 ## Features
 
-- **Bank connections** -- Link UK bank accounts via GoCardless with QR code auth flow
+- **Bank connections** -- Link European bank accounts via GoCardless with QR code auth flow
 - **Transaction sync** -- Pull and deduplicate transactions from connected accounts
 - **Categorization** -- Manual and rule-based auto-categorization of transactions
 - **Spending analysis** -- Daily, weekly, and monthly spending charts
