@@ -151,7 +151,8 @@ export async function GET(request: Request) {
 - Generic `gcFetch<T>(path, options)` handles auth headers
 - Flow: agreement -> requisition -> bank auth link -> callback -> save accounts -> sync transactions
 
-### Transaction Deduplication
+### Transaction Sync
+- Only **booked** transactions are imported — pending transactions are intentionally excluded to prevent duplicates (pending txns reappear as booked with different IDs)
 - `transactionId` is unique in the DB
 - Sync skips existing transactions by checking before insert
 

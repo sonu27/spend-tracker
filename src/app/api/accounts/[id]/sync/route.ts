@@ -111,7 +111,6 @@ export async function POST(
 
     const allTransactions = [
       ...data.transactions.booked.map((tx) => ({ ...tx, _status: "booked" as const })),
-      ...data.transactions.pending.map((tx) => ({ ...tx, _status: "pending" as const })),
     ];
 
     for (const tx of allTransactions) {
