@@ -14,6 +14,7 @@ interface Account {
   ownerName: string | null;
   iban: string | null;
   institutionId: string;
+  institutionName: string | null;
 }
 
 const PAGE_SIZE = 500;
@@ -178,11 +179,15 @@ function TransactionsContent() {
             className="px-3 py-1.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
           >
             <option value="">All</option>
-            {accounts.map((acc) => (
-              <option key={acc.id} value={acc.id}>
-                {acc.nickname ?? acc.name ?? acc.ownerName ?? acc.iban ?? acc.institutionId}
-              </option>
-            ))}
+            {accounts.map((acc) => {
+              const bank = acc.institutionName || acc.institutionId;
+              const label = acc.nickname ?? acc.name ?? acc.ownerName ?? acc.iban ?? acc.id.slice(0, 8);
+              return (
+                <option key={acc.id} value={acc.id}>
+                  {bank} — {label}
+                </option>
+              );
+            })}
           </select>
         </div>
         <div>

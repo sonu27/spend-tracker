@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { requisitions, accounts } from "@/db/schema";
-import { getRequisition, getAccountMetadata, getAccountDetails } from "@/lib/gocardless";
+import { getRequisition, getAccountMetadata, getAccountDetails, getInstitution } from "@/lib/gocardless";
 import { eq } from "drizzle-orm";
 
 export async function GET(request: Request) {
@@ -48,6 +48,16 @@ export async function GET(request: Request) {
 
     // If linked (status LN), save the accounts
     if (gcReq.status === "LN" && gcReq.accounts.length > 0) {
+      let institutionName: string | null = null;
+      let institutionLogo: string | null = null;
+      try {
+        const institution = await getInstitution(requisition.institutionId);
+        institutionName = institution.name;
+        institutionLogo = institution.logo;
+      } catch {
+        // Institution fetch failed — falls back to null
+      }
+
       for (const accountId of gcReq.accounts) {
         // Check if account already exists
         const existing = await db
@@ -86,6 +96,8 @@ export async function GET(request: Request) {
             ownerName,
             name,
             currency,
+            institutionName,
+            institutionLogo,
           });
         }
       }

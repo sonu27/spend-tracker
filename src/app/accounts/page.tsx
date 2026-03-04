@@ -22,11 +22,46 @@ interface Account {
   name: string | null;
   nickname: string | null;
   currency: string | null;
+  institutionName: string | null;
+  institutionLogo: string | null;
+  balance: number | null;
+  balanceDate: string | null;
   lastSyncedAt: string | null;
   requisitionStatus: string | null;
   maxHistoricalDays: number | null;
   accessValidForDays: number | null;
   connectedAt: string | null;
+}
+
+interface InstitutionGroup {
+  institutionId: string;
+  name: string;
+  logo: string | null;
+  accounts: Account[];
+}
+
+function groupByInstitution(accounts: Account[]): InstitutionGroup[] {
+  const map = new Map<string, InstitutionGroup>();
+  for (const account of accounts) {
+    const key = account.institutionId;
+    if (!map.has(key)) {
+      map.set(key, {
+        institutionId: key,
+        name: account.institutionName || key,
+        logo: account.institutionLogo,
+        accounts: [],
+      });
+    }
+    map.get(key)!.accounts.push(account);
+  }
+  return Array.from(map.values());
+}
+
+function formatCurrency(amount: number, currency: string = "GBP"): string {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+  }).format(amount);
 }
 
 interface SyncResult {
@@ -506,90 +541,123 @@ function AccountsContent() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {accounts.map((account) => (
-            <div
-              key={account.id}
-              className="bg-card border border-border rounded-xl p-6 flex items-center justify-between"
-            >
-              <div>
-                {editingNickname === account.id ? (
-                  <NicknameInput
-                    defaultValue={account.nickname ?? account.name ?? account.ownerName ?? ""}
-                    onSave={(value) => saveNickname(account.id, value)}
-                    onCancel={() => setEditingNickname(null)}
+        <div className="space-y-6">
+          {groupByInstitution(accounts).map((group) => (
+            <div key={group.institutionId}>
+              <div className="flex items-center gap-3 mb-3">
+                {group.logo && (
+                  <img
+                    src={group.logo}
+                    alt=""
+                    className="w-8 h-8 rounded"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
                   />
-                ) : (
-                  <p
-                    className="font-medium cursor-pointer hover:text-accent transition-colors"
-                    onClick={() => setEditingNickname(account.id)}
-                    title="Click to rename"
-                  >
-                    {account.nickname ?? account.name ?? account.ownerName ?? "Bank Account"}
-                  </p>
                 )}
-                {account.nickname && (account.name || account.ownerName) && (
+                <div>
+                  <h2 className="text-sm font-semibold">{group.name}</h2>
                   <p className="text-xs text-muted">
-                    {account.name ?? account.ownerName}
+                    {group.accounts.length} account{group.accounts.length !== 1 ? "s" : ""}
                   </p>
-                )}
-                <p className="text-sm text-muted mt-0.5">
-                  {account.iban
-                    ? `${account.iban.slice(0, 4)} •••• ${account.iban.slice(-4)}`
-                    : account.id.slice(0, 8)}
-                </p>
-                <p className="text-xs text-muted mt-1">
-                  {account.institutionId} &middot;{" "}
-                  {account.lastSyncedAt
-                    ? `Last synced: ${new Date(account.lastSyncedAt).toLocaleString()}`
-                    : "Never synced"}
-                </p>
-                <div className="flex gap-3 mt-2">
-                  {account.maxHistoricalDays != null && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs font-medium">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                      </svg>
-                      {account.maxHistoricalDays} days history
-                    </span>
-                  )}
-                  {account.accessValidForDays != null && account.connectedAt && (
-                    <AccessBadge
-                      accessValidForDays={account.accessValidForDays}
-                      connectedAt={account.connectedAt}
-                    />
-                  )}
                 </div>
-                {syncResults[account.id] && (
-                  <p className="text-xs text-success mt-2">
-                    Synced: {syncResults[account.id].inserted} new,{" "}
-                    {syncResults[account.id].skipped} existing
-                  </p>
-                )}
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => { await syncAccount(account.id); loadAccounts(); }}
-                  disabled={syncing[account.id]}
-                  className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
-                >
-                  {syncing[account.id] ? "Syncing..." : "Sync"}
-                </button>
-                <button
-                  onClick={() =>
-                    removeAccount(
-                      account.id,
-                      account.nickname || account.name || account.ownerName || "this account"
-                    )
-                  }
-                  className="px-3 py-2 border border-danger/30 text-danger text-sm font-medium rounded-lg hover:bg-danger/5 transition-colors"
-                  title="Remove account and all its transactions"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
-                </button>
+              <div className="grid gap-4">
+                {group.accounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="bg-card border border-border rounded-xl p-6 flex items-center justify-between"
+                  >
+                    <div>
+                      {editingNickname === account.id ? (
+                        <NicknameInput
+                          defaultValue={account.nickname ?? account.name ?? account.ownerName ?? ""}
+                          onSave={(value) => saveNickname(account.id, value)}
+                          onCancel={() => setEditingNickname(null)}
+                        />
+                      ) : (
+                        <p
+                          className="font-medium cursor-pointer hover:text-accent transition-colors"
+                          onClick={() => setEditingNickname(account.id)}
+                          title="Click to rename"
+                        >
+                          {account.nickname ?? account.name ?? account.ownerName ?? "Bank Account"}
+                        </p>
+                      )}
+                      {account.nickname && (account.name || account.ownerName) && (
+                        <p className="text-xs text-muted">
+                          {account.name ?? account.ownerName}
+                        </p>
+                      )}
+                      {account.balance != null && (
+                        <p className="text-lg font-semibold mt-1">
+                          {formatCurrency(account.balance, account.currency || "GBP")}
+                          {account.balanceDate && (
+                            <span className="text-xs font-normal text-muted ml-2">
+                              as of {account.balanceDate}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                      <p className="text-sm text-muted mt-0.5">
+                        {account.iban
+                          ? `${account.iban.slice(0, 4)} •••• ${account.iban.slice(-4)}`
+                          : account.id.slice(0, 8)}
+                      </p>
+                      <p className="text-xs text-muted mt-1">
+                        {account.lastSyncedAt
+                          ? `Last synced: ${new Date(account.lastSyncedAt).toLocaleString()}`
+                          : "Never synced"}
+                      </p>
+                      <div className="flex gap-3 mt-2">
+                        {account.maxHistoricalDays != null && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs font-medium">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {account.maxHistoricalDays} days history
+                          </span>
+                        )}
+                        {account.accessValidForDays != null && account.connectedAt && (
+                          <AccessBadge
+                            accessValidForDays={account.accessValidForDays}
+                            connectedAt={account.connectedAt}
+                          />
+                        )}
+                      </div>
+                      {syncResults[account.id] && (
+                        <p className="text-xs text-success mt-2">
+                          Synced: {syncResults[account.id].inserted} new,{" "}
+                          {syncResults[account.id].skipped} existing
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => { await syncAccount(account.id); loadAccounts(); }}
+                        disabled={syncing[account.id]}
+                        className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
+                      >
+                        {syncing[account.id] ? "Syncing..." : "Sync"}
+                      </button>
+                      <button
+                        onClick={() =>
+                          removeAccount(
+                            account.id,
+                            account.nickname || account.name || account.ownerName || "this account"
+                          )
+                        }
+                        className="px-3 py-2 border border-danger/30 text-danger text-sm font-medium rounded-lg hover:bg-danger/5 transition-colors"
+                        title="Remove account and all its transactions"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

@@ -154,6 +154,26 @@ export async function getInstitutions(
   return gcFetch<Institution[]>(`/institutions/?country=${country}`);
 }
 
+export async function getInstitution(
+  institutionId: string
+): Promise<Institution> {
+  return gcFetch<Institution>(`/institutions/${institutionId}/`);
+}
+
+export interface BalancesResponse {
+  balances: {
+    balanceAmount: { amount: string; currency: string };
+    balanceType: string;
+    referenceDate?: string;
+  }[];
+}
+
+export async function getBalances(
+  accountId: string
+): Promise<BalancesResponse> {
+  return gcFetch<BalancesResponse>(`/accounts/${accountId}/balances/`);
+}
+
 // --- Requisition types ---
 export interface RequisitionResponse {
   id: string;

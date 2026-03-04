@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { accounts, requisitions } from "@/db/schema";
-import { eq, isNull } from "drizzle-orm";
-import { getRequisition, getAgreement } from "@/lib/gocardless";
+import { eq, isNull, and } from "drizzle-orm";
+import { getRequisition, getAgreement, getInstitution } from "@/lib/gocardless";
 
 async function backfillRequisitionDetails() {
   // Find requisitions missing agreement data
@@ -39,10 +39,43 @@ async function backfillRequisitionDetails() {
   }
 }
 
+async function backfillInstitutionDetails() {
+  const stale = await db
+    .select({ id: accounts.id, institutionId: accounts.institutionId })
+    .from(accounts)
+    .where(isNull(accounts.institutionName));
+
+  // Group by institutionId to avoid duplicate API calls
+  const byInstitution = new Map<string, string[]>();
+  for (const row of stale) {
+    const ids = byInstitution.get(row.institutionId) || [];
+    ids.push(row.id);
+    byInstitution.set(row.institutionId, ids);
+  }
+
+  for (const [institutionId, accountIds] of byInstitution) {
+    try {
+      const institution = await getInstitution(institutionId);
+      for (const accountId of accountIds) {
+        await db
+          .update(accounts)
+          .set({
+            institutionName: institution.name,
+            institutionLogo: institution.logo,
+          })
+          .where(eq(accounts.id, accountId));
+      }
+    } catch (err) {
+      console.warn(`Backfill failed for institution ${institutionId}:`, err);
+    }
+  }
+}
+
 export async function GET() {
   try {
     // Lazily backfill any requisitions that are missing agreement details
     await backfillRequisitionDetails();
+    await backfillInstitutionDetails();
 
     const rows = await db
       .select({
@@ -54,6 +87,10 @@ export async function GET() {
         name: accounts.name,
         nickname: accounts.nickname,
         currency: accounts.currency,
+        institutionName: accounts.institutionName,
+        institutionLogo: accounts.institutionLogo,
+        balance: accounts.balance,
+        balanceDate: accounts.balanceDate,
         lastSyncedAt: accounts.lastSyncedAt,
         requisitionStatus: requisitions.status,
         maxHistoricalDays: requisitions.maxHistoricalDays,

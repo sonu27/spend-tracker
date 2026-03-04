@@ -35,6 +35,10 @@ export const accounts = sqliteTable("accounts", {
   name: text("name"),
   nickname: text("nickname"),
   currency: text("currency"),
+  institutionName: text("institution_name"),
+  institutionLogo: text("institution_logo"),
+  balance: real("balance"),
+  balanceDate: text("balance_date"),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
 });
 

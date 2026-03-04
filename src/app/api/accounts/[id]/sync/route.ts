@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { transactions, accounts, categoryRules, categories } from "@/db/schema";
-import { getTransactions, type RawTransaction } from "@/lib/gocardless";
+import { getTransactions, getBalances, type RawTransaction } from "@/lib/gocardless";
 import { eq } from "drizzle-orm";
 
 function extractMerchantName(tx: RawTransaction): string | null {
@@ -157,10 +157,25 @@ export async function POST(
       inserted++;
     }
 
-    // Update last synced
+    // Fetch balance
+    let balance: number | null = null;
+    let balanceDate: string | null = null;
+    try {
+      const balanceData = await getBalances(accountId);
+      const preferred = balanceData.balances.find(b => b.balanceType === "interimAvailable")
+        || balanceData.balances[0];
+      if (preferred) {
+        balance = parseFloat(preferred.balanceAmount.amount);
+        balanceDate = preferred.referenceDate || new Date().toISOString().slice(0, 10);
+      }
+    } catch {
+      // Some banks don't support balances
+    }
+
+    // Update last synced + balance
     await db
       .update(accounts)
-      .set({ lastSyncedAt: new Date() })
+      .set({ lastSyncedAt: new Date(), balance, balanceDate })
       .where(eq(accounts.id, accountId));
 
     return NextResponse.json({
