@@ -33,6 +33,7 @@ export const accounts = sqliteTable("accounts", {
   iban: text("iban"),
   ownerName: text("owner_name"),
   name: text("name"),
+  nickname: text("nickname"),
   currency: text("currency"),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
 });

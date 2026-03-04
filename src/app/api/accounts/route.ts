@@ -52,6 +52,7 @@ export async function GET() {
         iban: accounts.iban,
         ownerName: accounts.ownerName,
         name: accounts.name,
+        nickname: accounts.nickname,
         currency: accounts.currency,
         lastSyncedAt: accounts.lastSyncedAt,
         requisitionStatus: requisitions.status,

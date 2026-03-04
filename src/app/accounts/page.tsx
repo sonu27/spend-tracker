@@ -20,6 +20,7 @@ interface Account {
   iban: string | null;
   ownerName: string | null;
   name: string | null;
+  nickname: string | null;
   currency: string | null;
   lastSyncedAt: string | null;
   requisitionStatus: string | null;
@@ -209,6 +210,28 @@ function AccountsContent() {
     } finally {
       setSyncing((prev) => ({ ...prev, [accountId]: false }));
     }
+  }
+
+  const [editingNickname, setEditingNickname] = useState<string | null>(null);
+
+  async function saveNickname(accountId: string, nickname: string) {
+    try {
+      const res = await fetch(`/api/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname }),
+      });
+      if (res.ok) {
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === accountId ? { ...a, nickname: nickname || null } : a
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to save nickname:", err);
+    }
+    setEditingNickname(null);
   }
 
   const [syncingAll, setSyncingAll] = useState(false);
@@ -490,9 +513,26 @@ function AccountsContent() {
               className="bg-card border border-border rounded-xl p-6 flex items-center justify-between"
             >
               <div>
-                <p className="font-medium">
-                  {account.name || account.ownerName || "Bank Account"}
-                </p>
+                {editingNickname === account.id ? (
+                  <NicknameInput
+                    defaultValue={account.nickname ?? account.name ?? account.ownerName ?? ""}
+                    onSave={(value) => saveNickname(account.id, value)}
+                    onCancel={() => setEditingNickname(null)}
+                  />
+                ) : (
+                  <p
+                    className="font-medium cursor-pointer hover:text-accent transition-colors"
+                    onClick={() => setEditingNickname(account.id)}
+                    title="Click to rename"
+                  >
+                    {account.nickname ?? account.name ?? account.ownerName ?? "Bank Account"}
+                  </p>
+                )}
+                {account.nickname && (account.name || account.ownerName) && (
+                  <p className="text-xs text-muted">
+                    {account.name ?? account.ownerName}
+                  </p>
+                )}
                 <p className="text-sm text-muted mt-0.5">
                   {account.iban
                     ? `${account.iban.slice(0, 4)} •••• ${account.iban.slice(-4)}`
@@ -539,7 +579,7 @@ function AccountsContent() {
                   onClick={() =>
                     removeAccount(
                       account.id,
-                      account.name || account.ownerName || "this account"
+                      account.nickname || account.name || account.ownerName || "this account"
                     )
                   }
                   className="px-3 py-2 border border-danger/30 text-danger text-sm font-medium rounded-lg hover:bg-danger/5 transition-colors"
@@ -556,6 +596,42 @@ function AccountsContent() {
         </div>
       )}
     </div>
+  );
+}
+
+interface NicknameInputProps {
+  defaultValue: string;
+  onSave: (value: string) => void;
+  onCancel: () => void;
+}
+
+function NicknameInput({ defaultValue, onSave, onCancel }: NicknameInputProps) {
+  const [value, setValue] = useState(defaultValue);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      onSave(value.trim());
+    } else if (e.key === "Escape") {
+      onCancel();
+    }
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={() => onSave(value.trim())}
+      className="font-medium px-2 py-0.5 -ml-2 border border-accent rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 w-64"
+      autoFocus
+    />
   );
 }
 

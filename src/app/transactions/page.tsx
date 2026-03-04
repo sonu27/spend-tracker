@@ -7,6 +7,15 @@ import { format, subMonths, subDays } from "date-fns";
 import { TransactionTable } from "@/components/transactions/transaction-table";
 import type { Transaction, Category } from "@/components/transactions/transaction-table";
 
+interface Account {
+  id: string;
+  name: string | null;
+  nickname: string | null;
+  ownerName: string | null;
+  iban: string | null;
+  institutionId: string;
+}
+
 const PAGE_SIZE = 500;
 
 const DATE_PRESETS = [
@@ -31,9 +40,11 @@ function TransactionsContent() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterAccount, setFilterAccount] = useState("");
   const [dateFrom, setDateFrom] = useState(() => searchParams.get("dateFrom") || "");
   const [dateTo, setDateTo] = useState(() => searchParams.get("dateTo") || "");
   const [filterCategory, setFilterCategory] = useState(() => searchParams.get("categoryId") || "");
@@ -47,6 +58,7 @@ function TransactionsContent() {
       if (dateFrom) params.set("dateFrom", dateFrom);
       if (dateTo) params.set("dateTo", dateTo);
       if (search) params.set("search", search);
+      if (filterAccount) params.set("accountId", filterAccount);
       if (filterCategory) params.set("categoryId", filterCategory);
       if (showUncategorized) params.set("uncategorized", "true");
       params.set("limit", String(PAGE_SIZE));
@@ -63,7 +75,7 @@ function TransactionsContent() {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, search, filterCategory, showUncategorized, page]);
+  }, [dateFrom, dateTo, search, filterAccount, filterCategory, showUncategorized, page]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -77,9 +89,22 @@ function TransactionsContent() {
     }
   }, []);
 
+  const loadAccounts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/accounts");
+      if (res.ok) {
+        const data = await res.json();
+        setAccounts(data);
+      }
+    } catch (err) {
+      console.error("Failed to load accounts:", err);
+    }
+  }, []);
+
   useEffect(() => {
     loadCategories();
-  }, [loadCategories]);
+    loadAccounts();
+  }, [loadCategories, loadAccounts]);
 
   useEffect(() => {
     loadTransactions();
@@ -88,7 +113,7 @@ function TransactionsContent() {
   // Reset to page 0 when filters change
   useEffect(() => {
     setPage(0);
-  }, [dateFrom, dateTo, search, filterCategory, showUncategorized]);
+  }, [dateFrom, dateTo, search, filterAccount, filterCategory, showUncategorized]);
 
   function applyPreset(preset: (typeof DATE_PRESETS)[number]) {
     setDateFrom(typeof preset.from === "function" ? preset.from() : preset.from);
@@ -144,6 +169,21 @@ function TransactionsContent() {
             onChange={(e) => setDateTo(e.target.value)}
             className="px-3 py-1.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
+        </div>
+        <div>
+          <label className="block text-xs text-muted mb-1">Account</label>
+          <select
+            value={filterAccount}
+            onChange={(e) => setFilterAccount(e.target.value)}
+            className="px-3 py-1.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+          >
+            <option value="">All</option>
+            {accounts.map((acc) => (
+              <option key={acc.id} value={acc.id}>
+                {acc.nickname ?? acc.name ?? acc.ownerName ?? acc.iban ?? acc.institutionId}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs text-muted mb-1">Category</label>

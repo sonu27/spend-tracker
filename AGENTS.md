@@ -13,8 +13,9 @@ A local-only Next.js 16 application for tracking UK bank transactions via the Go
 | `npm run dev` | Start dev server (Turbopack) |
 | `npm run build` | Production build -- **use this to verify changes** |
 | `npm run lint` | ESLint (next/core-web-vitals + typescript) |
-| `npm run db:push` | Push Drizzle schema changes to SQLite |
 | `npm run db:generate` | Generate Drizzle migration files |
+| `npm run db:migrate` | Apply pending migrations to SQLite |
+| `npm run db:push` | Push schema directly (bypass migrations) |
 | `npm run db:seed` | Seed default categories and rules |
 | `npm run db:studio` | Open Drizzle Studio GUI |
 
@@ -43,6 +44,7 @@ src/
   db/
     schema.ts                   # Drizzle table definitions
     index.ts                    # DB singleton
+    migrate.ts                  # Migration runner (drizzle-orm/libsql/migrator)
     seed.ts                     # Default categories seed script
   lib/
     gocardless.ts               # GoCardless API client with token management
@@ -129,7 +131,7 @@ export async function GET(request: Request) {
 - Tables use `sqliteTable()` with snake_case SQL column names
 - Timestamps: `integer("col", { mode: "timestamp" }).$defaultFn(() => new Date())`
 - Foreign keys: `.references(() => table.column, { onDelete: "cascade" | "set null" })`
-- After schema changes, run `npm run db:push`
+- After schema changes, run `npm run db:generate` then `npm run db:migrate`
 
 ### Styling
 - Tailwind v4 with semantic CSS custom properties: `--background`, `--card-bg`, `--border`, `--muted`, `--accent`, `--danger`, `--success`

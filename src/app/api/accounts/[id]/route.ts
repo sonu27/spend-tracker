@@ -3,6 +3,35 @@ import { db } from "@/db";
 import { accounts, transactions, requisitions } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: accountId } = await params;
+
+  try {
+    const { nickname } = await request.json();
+    if (typeof nickname !== "string") {
+      return NextResponse.json({ error: "nickname is required" }, { status: 400 });
+    }
+
+    const result = await db
+      .update(accounts)
+      .set({ nickname: nickname || null })
+      .where(eq(accounts.id, accountId))
+      .returning();
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(result[0]);
+  } catch (error) {
+    console.error("Failed to update account:", error);
+    return NextResponse.json({ error: "Failed to update account" }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
