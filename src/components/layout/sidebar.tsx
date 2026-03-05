@@ -61,8 +61,8 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-border flex flex-col z-40">
       <div className="p-6 border-b border-border">
-        <h1 className="text-lg font-semibold tracking-tight">Transactions</h1>
-        <p className="text-sm text-muted mt-0.5">Bank Account Tracker</p>
+        <h1 className="text-lg font-semibold tracking-tight">LocalLedger</h1>
+        <p className="text-sm text-muted mt-0.5">Your data, your machine</p>
       </div>
       <nav className="flex-1 p-3 space-y-1">
         {navItems.map((item) => {

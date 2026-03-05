@@ -1,12 +1,12 @@
-# Spend Tracker
+# LocalLedger
 
 **Your finances, your machine, your data.** A local-first spending tracker that runs entirely on your own computer. No cloud. No accounts. No telemetry. Your transaction data never leaves your machine.
 
-Spend Tracker connects to bank accounts across Europe via the [GoCardless Bank Account Data API](https://gocardless.com/bank-account-data/) to pull transactions, then stores and processes everything locally in a SQLite database on your filesystem. GoCardless supports [2,500+ banks in 31 countries](https://docs.google.com/spreadsheets/d/1EZ5n7QDGaRIot5M86dwqd5UFSGEDTeTRzEq3D9uEDkM/edit?gid=976380583). There is no backend server, no third-party analytics, and no data shared with anyone. The GoCardless API is used solely as a read-only bridge to fetch your bank data -- nothing is sent back.
+LocalLedger connects to bank accounts across Europe via the [GoCardless Bank Account Data API](https://gocardless.com/bank-account-data/) to pull transactions, then stores and processes everything locally in a SQLite database on your filesystem. GoCardless supports [2,500+ banks in 31 countries](https://docs.google.com/spreadsheets/d/1EZ5n7QDGaRIot5M86dwqd5UFSGEDTeTRzEq3D9uEDkM/edit?gid=976380583). There is no backend server, no third-party analytics, and no data shared with anyone. The GoCardless API is used solely as a read-only bridge to fetch your bank data -- nothing is sent back.
 
 ## Why Local-First?
 
-Most budgeting apps require you to hand over your financial data to a company's servers. Spend Tracker takes a different approach:
+Most budgeting apps require you to hand over your financial data to a company's servers. LocalLedger takes a different approach:
 
 - **All data stays on disk** -- Transactions are stored in a local SQLite file. No cloud database, no sync service.
 - **No accounts or auth** -- There's no login, no user system. It's your machine, so it's your app.

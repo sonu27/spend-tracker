@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Transactions",
-  description: "Track and categorize your bank transactions",
+  title: "LocalLedger",
+  description: "Your finances, your machine, your data.",
 };
 
 export default function RootLayout({
