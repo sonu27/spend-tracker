@@ -162,8 +162,11 @@ export async function POST(
     let balanceDate: string | null = null;
     try {
       const balanceData = await getBalances(accountId);
-      const preferred = balanceData.balances.find(b => b.balanceType === "interimAvailable")
-        || balanceData.balances[0];
+      const BALANCE_PREFERENCE = ["interimBooked", "expected", "closingBooked", "information", "interimAvailable", "openingAvailable", "forwardAvailable"];
+      const preferred = BALANCE_PREFERENCE.reduce<typeof balanceData.balances[0] | undefined>(
+        (found, type) => found || balanceData.balances.find(b => b.balanceType === type),
+        undefined,
+      ) || balanceData.balances[0];
       if (preferred) {
         balance = parseFloat(preferred.balanceAmount.amount);
         balanceDate = preferred.referenceDate || new Date().toISOString().slice(0, 10);
