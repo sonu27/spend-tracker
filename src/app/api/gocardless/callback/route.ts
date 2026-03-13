@@ -70,6 +70,7 @@ export async function GET(request: Request) {
           let iban: string | null = null;
           let ownerName: string | null = null;
           let name: string | null = null;
+          let product: string | null = null;
           let currency: string | null = null;
 
           try {
@@ -78,10 +79,11 @@ export async function GET(request: Request) {
             ownerName = metadata.owner_name || null;
 
             const details = await getAccountDetails(accountId);
+            product = details.account?.product || null;
             name =
               details.account?.displayName ||
               details.account?.name ||
-              details.account?.product ||
+              product ||
               null;
             currency = details.account?.currency || null;
           } catch {
@@ -95,6 +97,7 @@ export async function GET(request: Request) {
             iban,
             ownerName,
             name,
+            product,
             currency,
             institutionName,
             institutionLogo,

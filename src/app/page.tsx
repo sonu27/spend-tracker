@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useChartColors } from "@/lib/use-chart-colors";
 import { TransactionTable } from "@/components/transactions/transaction-table";
 import type { Transaction, Category } from "@/components/transactions/transaction-table";
 import {
@@ -15,6 +16,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from "recharts";
 import {
   format,
@@ -36,6 +38,13 @@ interface SpendingSummary {
     count: number;
   }[];
   byPeriod: { period: string; total: number; count: number }[];
+}
+
+interface CashflowSummary {
+  total: number;
+  transactionCount: number;
+  byPeriod: { period: string; total: number; count: number }[];
+  bySource: { source: string; total: number; count: number }[];
 }
 
 interface MerchantSpending {
@@ -64,6 +73,7 @@ export default function DashboardPage() {
   const [selectedMonth, setSelectedMonth] = useState(() => new Date());
   const [summary, setSummary] = useState<SpendingSummary | null>(null);
   const [prevSummary, setPrevSummary] = useState<SpendingSummary | null>(null);
+  const [cashflow, setCashflow] = useState<CashflowSummary | null>(null);
   const [merchants, setMerchants] = useState<MerchantSpending[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -71,6 +81,7 @@ export default function DashboardPage() {
   const [categoryTxs, setCategoryTxs] = useState<Transaction[]>([]);
   const [categoryTxLoading, setCategoryTxLoading] = useState(false);
 
+  const chartColors = useChartColors();
   const isCurrentMonth = isSameMonth(selectedMonth, new Date());
 
   const loadData = useCallback(async () => {
@@ -79,17 +90,19 @@ export default function DashboardPage() {
       const { from, to } = monthRange(selectedMonth);
       const prev = monthRange(subMonths(selectedMonth, 1));
 
-      const [summaryRes, prevRes, merchantRes, catRes] = await Promise.all([
+      const [summaryRes, prevRes, merchantRes, catRes, cashflowRes] = await Promise.all([
         fetch(`/api/spending/summary?dateFrom=${from}&dateTo=${to}&groupBy=day`),
         fetch(`/api/spending/summary?dateFrom=${prev.from}&dateTo=${prev.to}&groupBy=day`),
         fetch(`/api/spending/merchants?dateFrom=${from}&dateTo=${to}&limit=10`),
         fetch("/api/categories"),
+        fetch(`/api/cashflow/summary?dateFrom=${from}&dateTo=${to}&groupBy=day`),
       ]);
 
       if (summaryRes.ok) setSummary(await summaryRes.json());
       if (prevRes.ok) setPrevSummary(await prevRes.json());
       if (merchantRes.ok) setMerchants(await merchantRes.json());
       if (catRes.ok) setCategories(await catRes.json());
+      if (cashflowRes.ok) setCashflow(await cashflowRes.json());
     } catch (error) {
       console.error("Failed to load dashboard:", error);
     } finally {
@@ -115,7 +128,7 @@ export default function DashboardPage() {
     }
   }
 
-  const hasData = summary && summary.transactionCount > 0;
+  const hasData = (summary && summary.transactionCount > 0) || (cashflow && cashflow.transactionCount > 0);
   const monthLabel = format(selectedMonth, "MMMM yyyy");
 
   // Compute month-over-month change
@@ -126,6 +139,27 @@ export default function DashboardPage() {
 
   const daysWithSpending = summary?.byPeriod?.length || 1;
   const dailyAvg = currentTotal / Math.max(daysWithSpending, 1);
+
+  // Income & cash flow
+  const incomeTotal = cashflow?.total || 0;
+  const netCashFlow = incomeTotal - currentTotal;
+
+  // Merge spending and income by period for combined chart
+  const combinedPeriodData = (() => {
+    const map = new Map<string, { period: string; spending: number; income: number }>();
+    for (const s of summary?.byPeriod || []) {
+      map.set(s.period, { period: s.period, spending: s.total, income: 0 });
+    }
+    for (const i of cashflow?.byPeriod || []) {
+      const existing = map.get(i.period);
+      if (existing) {
+        existing.income = i.total;
+      } else {
+        map.set(i.period, { period: i.period, spending: 0, income: i.total });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.period.localeCompare(b.period));
+  })();
 
   async function handleCategoryClick(cat: SelectedCategory) {
     // Toggle off if clicking the same category
@@ -171,7 +205,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-1">
           <button
             onClick={goToPrevMonth}
-            className="p-2 rounded-lg hover:bg-black/5 transition-colors text-muted hover:text-foreground"
+            className="p-2 rounded-lg hover:bg-foreground/5 transition-colors text-muted hover:text-foreground"
             title="Previous month"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -184,7 +218,7 @@ export default function DashboardPage() {
           <button
             onClick={goToNextMonth}
             disabled={isCurrentMonth}
-            className="p-2 rounded-lg hover:bg-black/5 transition-colors text-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-2 rounded-lg hover:bg-foreground/5 transition-colors text-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
             title="Next month"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -208,7 +242,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-5 gap-4">
             <div className="bg-card border border-border rounded-xl p-6">
               <p className="text-sm text-muted">Total Spending</p>
               <p className="text-2xl font-semibold mt-1">
@@ -216,6 +250,27 @@ export default function DashboardPage() {
               </p>
               <p className="text-xs text-muted mt-1">
                 {summary?.transactionCount || 0} transactions
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <p className="text-sm text-muted">Total Income</p>
+              <p className="text-2xl font-semibold mt-1 text-success">
+                {formatCurrency(incomeTotal)}
+              </p>
+              <p className="text-xs text-muted mt-1">
+                {cashflow?.transactionCount || 0} transactions
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <p className="text-sm text-muted">Net Cash Flow</p>
+              <p className={cn(
+                "text-2xl font-semibold mt-1",
+                netCashFlow >= 0 ? "text-success" : "text-danger"
+              )}>
+                {netCashFlow >= 0 ? "+" : ""}{formatCurrency(netCashFlow)}
+              </p>
+              <p className="text-xs text-muted mt-1">
+                {netCashFlow >= 0 ? "surplus" : "deficit"}
               </p>
             </div>
             <div className="bg-card border border-border rounded-xl p-6">
@@ -259,7 +314,7 @@ export default function DashboardPage() {
               </h2>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={summary?.byPeriod || []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                   <XAxis
                     dataKey="period"
                     tick={{ fontSize: 11 }}
@@ -274,6 +329,8 @@ export default function DashboardPage() {
                   />
                   <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `\u00A3${v}`} />
                   <Tooltip
+                    contentStyle={{ backgroundColor: chartColors.cardBg, borderColor: chartColors.border, borderRadius: "0.5rem" }}
+                    labelStyle={{ color: chartColors.foreground }}
                     formatter={(value: number | undefined) => [formatCurrency(value ?? 0), "Spent"]}
                     labelFormatter={(label) => {
                       try {
@@ -283,7 +340,7 @@ export default function DashboardPage() {
                       }
                     }}
                   />
-                  <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total" fill={chartColors.accent} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -316,11 +373,59 @@ export default function DashboardPage() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: chartColors.cardBg, borderColor: chartColors.border, borderRadius: "0.5rem" }}
+                    formatter={(value: number | undefined) => formatCurrency(value ?? 0)}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* Income vs Spending chart */}
+          {combinedPeriodData.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-sm font-medium text-muted mb-4">
+                Income vs Spending
+              </h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={combinedPeriodData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                  <XAxis
+                    dataKey="period"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => {
+                      try {
+                        return format(new Date(v), "d");
+                      } catch {
+                        return v;
+                      }
+                    }}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `\u00A3${v}`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: chartColors.cardBg, borderColor: chartColors.border, borderRadius: "0.5rem" }}
+                    labelStyle={{ color: chartColors.foreground }}
+                    formatter={(value: number | undefined, name?: string) => [
+                      formatCurrency(value ?? 0),
+                      name === "spending" ? "Spending" : "Income",
+                    ]}
+                    labelFormatter={(label) => {
+                      try {
+                        return format(new Date(String(label)), "EEE dd MMM");
+                      } catch {
+                        return String(label);
+                      }
+                    }}
+                  />
+                  <Legend formatter={(value) => value === "spending" ? "Spending" : "Income"} />
+                  <Bar dataKey="spending" fill={chartColors.accent} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="income" fill={chartColors.success} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* Category transactions (inline, below charts) */}
           {selectedCategory && (
@@ -341,7 +446,7 @@ export default function DashboardPage() {
                 </div>
                 <button
                   onClick={() => { setSelectedCategory(null); setCategoryTxs([]); }}
-                  className="p-1 rounded hover:bg-black/5 text-muted hover:text-foreground transition-colors"
+                  className="p-1 rounded hover:bg-foreground/5 text-muted hover:text-foreground transition-colors"
                   title="Close"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -368,35 +473,67 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Top merchants */}
-          <div className="bg-card border border-border rounded-xl p-6">
-            <h2 className="text-sm font-medium text-muted mb-4">
-              Top Merchants
-            </h2>
-            {merchants.length === 0 ? (
-              <p className="text-muted text-sm">No merchant data available.</p>
-            ) : (
-              <div className="space-y-3">
-                {merchants.map((m, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="w-6 text-xs text-muted text-right">
-                        {i + 1}
-                      </span>
-                      <span className="text-sm font-medium">{m.merchant}</span>
+          {/* Top merchants & Income sources */}
+          <div className="grid grid-cols-2 gap-6">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-sm font-medium text-muted mb-4">
+                Top Merchants
+              </h2>
+              {merchants.length === 0 ? (
+                <p className="text-muted text-sm">No merchant data available.</p>
+              ) : (
+                <div className="space-y-3">
+                  {merchants.map((m, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 text-xs text-muted text-right">
+                          {i + 1}
+                        </span>
+                        <span className="text-sm font-medium">{m.merchant}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-medium">
+                          {formatCurrency(m.total)}
+                        </span>
+                        <span className="text-xs text-muted ml-2">
+                          ({m.count} txn{m.count !== 1 ? "s" : ""})
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-medium">
-                        {formatCurrency(m.total)}
-                      </span>
-                      <span className="text-xs text-muted ml-2">
-                        ({m.count} txn{m.count !== 1 ? "s" : ""})
-                      </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-sm font-medium text-muted mb-4">
+                Income Sources
+              </h2>
+              {!cashflow?.bySource?.length ? (
+                <p className="text-muted text-sm">No income data available.</p>
+              ) : (
+                <div className="space-y-3">
+                  {cashflow.bySource.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 text-xs text-muted text-right">
+                          {i + 1}
+                        </span>
+                        <span className="text-sm font-medium">{s.source}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-medium text-success">
+                          {formatCurrency(s.total)}
+                        </span>
+                        <span className="text-xs text-muted ml-2">
+                          ({s.count} txn{s.count !== 1 ? "s" : ""})
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}

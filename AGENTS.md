@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project Overview
 
-A local-only Next.js 16 application for tracking UK bank transactions via the GoCardless Bank Account Data API. No authentication. SQLite database. Client-rendered pages that call API routes.
+A local-only Next.js 16 application for tracking UK bank transactions via the [GoCardless Bank Account Data API](https://developer.gocardless.com/bank-account-data/overview/). No authentication. SQLite database. Client-rendered pages that call API routes.
 
 ## Commands
 

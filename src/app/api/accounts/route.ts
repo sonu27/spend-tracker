@@ -86,6 +86,7 @@ export async function GET() {
         ownerName: accounts.ownerName,
         name: accounts.name,
         nickname: accounts.nickname,
+        accountType: accounts.accountType,
         currency: accounts.currency,
         institutionName: accounts.institutionName,
         institutionLogo: accounts.institutionLogo,

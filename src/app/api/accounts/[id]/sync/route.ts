@@ -93,6 +93,8 @@ export async function POST(
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
+    const isCreditCard = account[0].accountType === "credit_card";
+
     // Optionally accept date range from request body
     let dateFrom: string | undefined;
     let dateTo: string | undefined;
@@ -162,13 +164,19 @@ export async function POST(
     let balanceDate: string | null = null;
     try {
       const balanceData = await getBalances(accountId);
-      const BALANCE_PREFERENCE = ["interimBooked", "expected", "closingBooked", "information", "interimAvailable", "openingAvailable", "forwardAvailable"];
+      const BALANCE_PREFERENCE = isCreditCard
+        ? ["forwardAvailable", "interimAvailable", "closingBooked", "interimBooked", "expected"]
+        : ["interimBooked", "expected", "closingBooked", "information", "interimAvailable", "openingAvailable", "forwardAvailable"];
       const preferred = BALANCE_PREFERENCE.reduce<typeof balanceData.balances[0] | undefined>(
         (found, type) => found || balanceData.balances.find(b => b.balanceType === type),
         undefined,
       ) || balanceData.balances[0];
       if (preferred) {
         balance = parseFloat(preferred.balanceAmount.amount);
+        // For credit cards, negate to show debt as positive
+        if (isCreditCard && balance < 0) {
+          balance = -balance;
+        }
         balanceDate = preferred.referenceDate || new Date().toISOString().slice(0, 10);
       }
     } catch {

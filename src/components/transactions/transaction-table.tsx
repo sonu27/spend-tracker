@@ -173,7 +173,7 @@ export function TransactionTable({
               <tr
                 onClick={() => toggleMerchantHistory(tx)}
                 className={cn(
-                  "border-b border-border/50 hover:bg-black/[0.02] cursor-pointer",
+                  "border-b border-border/50 hover:bg-foreground/[0.02] cursor-pointer",
                   isExpanded && "bg-accent/[0.04]"
                 )}
               >

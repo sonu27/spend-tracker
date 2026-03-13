@@ -247,7 +247,7 @@ function TransactionsContent() {
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="px-3 py-1 border border-border rounded-lg text-sm hover:bg-black/5 transition-colors disabled:opacity-40"
+              className="px-3 py-1 border border-border rounded-lg text-sm hover:bg-foreground/5 transition-colors disabled:opacity-40"
             >
               Previous
             </button>
@@ -257,7 +257,7 @@ function TransactionsContent() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1}
-              className="px-3 py-1 border border-border rounded-lg text-sm hover:bg-black/5 transition-colors disabled:opacity-40"
+              className="px-3 py-1 border border-border rounded-lg text-sm hover:bg-foreground/5 transition-colors disabled:opacity-40"
             >
               Next
             </button>
@@ -290,7 +290,7 @@ function TransactionsContent() {
                 <button
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="px-3 py-1 border border-border rounded-lg text-xs hover:bg-black/5 transition-colors disabled:opacity-40"
+                  className="px-3 py-1 border border-border rounded-lg text-xs hover:bg-foreground/5 transition-colors disabled:opacity-40"
                 >
                   Previous
                 </button>
@@ -300,7 +300,7 @@ function TransactionsContent() {
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
-                  className="px-3 py-1 border border-border rounded-lg text-xs hover:bg-black/5 transition-colors disabled:opacity-40"
+                  className="px-3 py-1 border border-border rounded-lg text-xs hover:bg-foreground/5 transition-colors disabled:opacity-40"
                 >
                   Next
                 </button>

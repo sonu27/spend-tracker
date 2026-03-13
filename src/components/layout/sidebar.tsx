@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const navItems = [
   {
@@ -78,7 +79,7 @@ export function Sidebar() {
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 isActive
                   ? "bg-accent/10 text-accent"
-                  : "text-muted hover:text-foreground hover:bg-black/5"
+                  : "text-muted hover:text-foreground hover:bg-foreground/5"
               )}
             >
               {item.icon}
@@ -87,6 +88,9 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <div className="p-3 border-t border-border">
+        <ThemeToggle />
+      </div>
     </aside>
   );
 }

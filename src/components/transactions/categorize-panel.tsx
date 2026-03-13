@@ -127,7 +127,7 @@ export function CategorizePanel({
         <div className="p-3 space-y-1.5">
           <button
             onClick={() => setMode("single")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-black/5 transition-colors text-left"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-foreground/5 transition-colors text-left"
           >
             <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
               <svg
@@ -153,7 +153,7 @@ export function CategorizePanel({
 
           <button
             onClick={() => setMode("bulk")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-black/5 transition-colors text-left"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-foreground/5 transition-colors text-left"
           >
             <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
               <svg
@@ -188,7 +188,7 @@ export function CategorizePanel({
               "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
               transaction.categoryId === null
                 ? "bg-accent/10 text-accent"
-                : "hover:bg-black/5 text-muted"
+                : "hover:bg-foreground/5 text-muted"
             )}
           >
             Uncategorized
@@ -202,7 +202,7 @@ export function CategorizePanel({
                 "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
                 transaction.categoryId === cat.id
                   ? "bg-accent/10 text-accent"
-                  : "hover:bg-black/5"
+                  : "hover:bg-foreground/5"
               )}
             >
               <span
@@ -246,7 +246,7 @@ export function CategorizePanel({
                     "flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-colors text-left border",
                     selectedCategory === cat.id
                       ? "border-accent bg-accent/10 text-accent font-medium"
-                      : "border-transparent hover:bg-black/5"
+                      : "border-transparent hover:bg-foreground/5"
                   )}
                 >
                   <span
@@ -270,7 +270,7 @@ export function CategorizePanel({
             </button>
             <button
               onClick={() => setMode("choose")}
-              className="px-3 py-2 border border-border text-sm rounded-lg hover:bg-black/5 transition-colors"
+              className="px-3 py-2 border border-border text-sm rounded-lg hover:bg-foreground/5 transition-colors"
             >
               Back
             </button>

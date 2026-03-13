@@ -164,7 +164,7 @@ export default function CategoriesPage() {
                     type="button"
                     onClick={() => setFormColor(c)}
                     className={`w-7 h-7 rounded-full transition-transform ${
-                      formColor === c ? "ring-2 ring-offset-2 ring-accent scale-110" : ""
+                      formColor === c ? "ring-2 ring-offset-2 ring-offset-card ring-accent scale-110" : ""
                     }`}
                     style={{ backgroundColor: c }}
                   />
@@ -220,7 +220,7 @@ export default function CategoriesPage() {
             <button
               type="button"
               onClick={resetForm}
-              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-black/5 transition-colors"
+              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-foreground/5 transition-colors"
             >
               Cancel
             </button>
@@ -268,7 +268,7 @@ export default function CategoriesPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => startEdit(cat)}
-                  className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-black/5 transition-colors"
+                  className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-foreground/5 transition-colors"
                 >
                   Edit
                 </button>

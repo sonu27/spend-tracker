@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --background: #f8fafc;
   --foreground: #0f172a;
   --sidebar-bg: #ffffff;
@@ -11,6 +12,38 @@
   --accent-hover: #2563eb;
   --danger: #ef4444;
   --success: #22c55e;
+}
+
+/* System preference (no explicit class on <html>) */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    --background: #0f172a;
+    --foreground: #f1f5f9;
+    --sidebar-bg: #1e293b;
+    --card-bg: #1e293b;
+    --border: #334155;
+    --muted: #94a3b8;
+    --accent: #60a5fa;
+    --accent-hover: #3b82f6;
+    --danger: #f87171;
+    --success: #4ade80;
+  }
+}
+
+/* Manual dark override */
+:root.dark {
+  color-scheme: dark;
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --sidebar-bg: #1e293b;
+  --card-bg: #1e293b;
+  --border: #334155;
+  --muted: #94a3b8;
+  --accent: #60a5fa;
+  --accent-hover: #3b82f6;
+  --danger: #f87171;
+  --success: #4ade80;
 }
 
 @theme inline {

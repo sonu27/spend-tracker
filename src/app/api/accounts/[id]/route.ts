@@ -10,14 +10,30 @@ export async function PATCH(
   const { id: accountId } = await params;
 
   try {
-    const { nickname } = await request.json();
-    if (typeof nickname !== "string") {
-      return NextResponse.json({ error: "nickname is required" }, { status: 400 });
+    const body = await request.json();
+    const updates: { nickname?: string | null; accountType?: string | null } = {};
+
+    if ("nickname" in body) {
+      if (typeof body.nickname !== "string") {
+        return NextResponse.json({ error: "nickname must be a string" }, { status: 400 });
+      }
+      updates.nickname = body.nickname || null;
+    }
+
+    if ("accountType" in body) {
+      if (body.accountType !== null && body.accountType !== "credit_card") {
+        return NextResponse.json({ error: "accountType must be null or \"credit_card\"" }, { status: 400 });
+      }
+      updates.accountType = body.accountType;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
     const result = await db
       .update(accounts)
-      .set({ nickname: nickname || null })
+      .set(updates)
       .where(eq(accounts.id, accountId))
       .returning();
 

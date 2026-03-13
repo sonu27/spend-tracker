@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { useChartColors } from "@/lib/use-chart-colors";
 import { format, subMonths, subWeeks, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import {
   BarChart,
@@ -39,6 +40,7 @@ interface MerchantSpending {
 }
 
 export default function SpendingPage() {
+  const chartColors = useChartColors();
   const [period, setPeriod] = useState<Period>("weekly");
   const [offset, setOffset] = useState(0);
   const [summary, setSummary] = useState<SpendingSummary | null>(null);
@@ -113,14 +115,14 @@ export default function SpendingPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setOffset((o) => o + 1)}
-            className="px-3 py-1.5 border border-border rounded-lg text-sm hover:bg-black/5 transition-colors"
+            className="px-3 py-1.5 border border-border rounded-lg text-sm hover:bg-foreground/5 transition-colors"
           >
             Older
           </button>
           <button
             onClick={() => setOffset((o) => Math.max(0, o - 1))}
             disabled={offset === 0}
-            className="px-3 py-1.5 border border-border rounded-lg text-sm hover:bg-black/5 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 border border-border rounded-lg text-sm hover:bg-foreground/5 transition-colors disabled:opacity-50"
           >
             Newer
           </button>
@@ -176,16 +178,18 @@ export default function SpendingPage() {
             </h2>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={summary?.byPeriod || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                 <XAxis dataKey="period" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `\u00A3${v}`} />
                 <Tooltip
+                  contentStyle={{ backgroundColor: chartColors.cardBg, borderColor: chartColors.border, borderRadius: "0.5rem" }}
+                  labelStyle={{ color: chartColors.foreground }}
                   formatter={(value: number | undefined) => [
                     formatCurrency(value ?? 0),
                     "Spent",
                   ]}
                 />
-                <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" fill={chartColors.accent} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -214,6 +218,7 @@ export default function SpendingPage() {
                         ))}
                       </Pie>
                       <Tooltip
+                        contentStyle={{ backgroundColor: chartColors.cardBg, borderColor: chartColors.border, borderRadius: "0.5rem" }}
                         formatter={(value: number | undefined) =>
                           formatCurrency(value ?? 0)
                         }

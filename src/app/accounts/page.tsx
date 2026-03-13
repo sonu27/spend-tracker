@@ -24,6 +24,7 @@ interface Account {
   currency: string | null;
   institutionName: string | null;
   institutionLogo: string | null;
+  accountType: string | null;
   balance: number | null;
   balanceDate: string | null;
   lastSyncedAt: string | null;
@@ -269,6 +270,25 @@ function AccountsContent() {
     setEditingNickname(null);
   }
 
+  async function saveAccountType(accountId: string, accountType: string | null) {
+    try {
+      const res = await fetch(`/api/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountType }),
+      });
+      if (res.ok) {
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === accountId ? { ...a, accountType } : a
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to save account type:", err);
+    }
+  }
+
   const [syncingAll, setSyncingAll] = useState(false);
 
   async function syncAll() {
@@ -323,7 +343,7 @@ function AccountsContent() {
             <button
               onClick={syncAll}
               disabled={syncingAll}
-              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-black/5 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-foreground/5 transition-colors disabled:opacity-50"
             >
               {syncingAll ? "Syncing All..." : "Sync All"}
             </button>
@@ -421,7 +441,7 @@ function AccountsContent() {
 
             <button
               onClick={cancelQrFlow}
-              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-black/5 transition-colors"
+              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-foreground/5 transition-colors"
             >
               {pollStatus === "waiting" ? "Cancel" : "Close"}
             </button>
@@ -505,7 +525,7 @@ function AccountsContent() {
                     key={inst.id}
                     onClick={() => connectBank(inst.id, inst.name, inst.transaction_total_days)}
                     disabled={connecting}
-                    className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/5 transition-colors text-left disabled:opacity-50"
+                    className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-foreground/5 transition-colors text-left disabled:opacity-50"
                   >
                     <img
                       src={inst.logo}
@@ -589,6 +609,19 @@ function AccountsContent() {
                           {account.name ?? account.ownerName}
                         </p>
                       )}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-xs text-muted">Type:</span>
+                        <select
+                          value={account.accountType || ""}
+                          onChange={(e) =>
+                            saveAccountType(account.id, e.target.value || null)
+                          }
+                          className="text-xs text-muted bg-transparent border border-border rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                        >
+                          <option value="">Current account</option>
+                          <option value="credit_card">Credit card</option>
+                        </select>
+                      </div>
                       {account.balance != null && (
                         <p className="text-lg font-semibold mt-1">
                           {formatCurrency(account.balance, account.currency || "GBP")}
