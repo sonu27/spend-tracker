@@ -41,6 +41,7 @@ export const accounts = sqliteTable("accounts", {
   accountType: text("account_type"),
   balance: real("balance"),
   balanceDate: text("balance_date"),
+  creditLeft: real("credit_left"),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
 });
 

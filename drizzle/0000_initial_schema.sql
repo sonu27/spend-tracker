@@ -5,7 +5,15 @@ CREATE TABLE `accounts` (
 	`iban` text,
 	`owner_name` text,
 	`name` text,
+	`nickname` text,
+	`product` text,
 	`currency` text,
+	`institution_name` text,
+	`institution_logo` text,
+	`account_type` text,
+	`balance` real,
+	`balance_date` text,
+	`credit_left` real,
 	`last_synced_at` integer,
 	FOREIGN KEY (`requisition_id`) REFERENCES `requisitions`(`id`) ON UPDATE no action ON DELETE no action
 );

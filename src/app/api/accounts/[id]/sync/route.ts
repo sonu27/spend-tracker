@@ -1,8 +1,22 @@
 import { NextResponse } from "next/server";
+import { mkdirSync, writeFileSync } from "fs";
+import { join } from "path";
 import { db } from "@/db";
 import { transactions, accounts, categoryRules, categories } from "@/db/schema";
 import { getTransactions, getBalances, type RawTransaction } from "@/lib/gocardless";
 import { eq } from "drizzle-orm";
+
+// Persist raw GoCardless responses to disk for debugging — GoCardless rate-limits
+// to a few calls per account per day, so we avoid re-fetching just to inspect payloads.
+function writeResponseFile(kind: "balances" | "transactions", accountId: string, payload: unknown) {
+  try {
+    const dir = join(process.cwd(), "gocardless-responses", kind);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${accountId}.json`), JSON.stringify(payload, null, 2));
+  } catch (err) {
+    console.warn(`Failed to write ${kind} response for ${accountId}:`, err);
+  }
+}
 
 function extractMerchantName(tx: RawTransaction): string | null {
   return tx.creditorName || tx.debtorName || null;
@@ -107,6 +121,7 @@ export async function POST(
     }
 
     const data = await getTransactions(accountId, dateFrom, dateTo);
+    writeResponseFile("transactions", accountId, data);
 
     let inserted = 0;
     let skipped = 0;
@@ -162,22 +177,40 @@ export async function POST(
     // Fetch balance
     let balance: number | null = null;
     let balanceDate: string | null = null;
+    let creditLeft: number | null = null;
     try {
       const balanceData = await getBalances(accountId);
+      writeResponseFile("balances", accountId, balanceData);
+      // Credit cards: pick the outstanding balance including pending. Banks
+      // return this as a negative amount; positive amounts on a CC represent
+      // "credit remaining" (Halifax-style) so we filter those out.
+      // Current accounts: prefer booked over "available", which can include
+      // overdraft headroom.
       const BALANCE_PREFERENCE = isCreditCard
-        ? ["forwardAvailable", "interimAvailable", "closingBooked", "interimBooked", "expected"]
+        ? ["forwardAvailable", "interimBooked", "expected", "closingBooked", "interimAvailable", "information"]
         : ["interimBooked", "expected", "closingBooked", "information", "interimAvailable", "openingAvailable", "forwardAvailable"];
+      const candidates = isCreditCard
+        ? balanceData.balances.filter((b) => parseFloat(b.balanceAmount.amount) < 0)
+        : balanceData.balances;
       const preferred = BALANCE_PREFERENCE.reduce<typeof balanceData.balances[0] | undefined>(
-        (found, type) => found || balanceData.balances.find(b => b.balanceType === type),
+        (found, type) => found || candidates.find((b) => b.balanceType === type),
         undefined,
-      ) || balanceData.balances[0];
+      ) || candidates[0] || balanceData.balances[0];
       if (preferred) {
         balance = parseFloat(preferred.balanceAmount.amount);
-        // For credit cards, negate to show debt as positive
-        if (isCreditCard && balance < 0) {
-          balance = -balance;
-        }
         balanceDate = preferred.referenceDate || new Date().toISOString().slice(0, 10);
+      }
+      // Credit left: only banks that return a positive available-type balance
+      // expose this (Halifax uses interimAvailable, Chase uses openingAvailable).
+      if (isCreditCard) {
+        for (const type of ["interimAvailable", "forwardAvailable", "openingAvailable"]) {
+          const match = balanceData.balances.find((b) => b.balanceType === type);
+          const amount = match ? parseFloat(match.balanceAmount.amount) : NaN;
+          if (!isNaN(amount) && amount > 0) {
+            creditLeft = amount;
+            break;
+          }
+        }
       }
     } catch {
       // Some banks don't support balances
@@ -186,7 +219,7 @@ export async function POST(
     // Update last synced + balance
     await db
       .update(accounts)
-      .set({ lastSyncedAt: new Date(), balance, balanceDate })
+      .set({ lastSyncedAt: new Date(), balance, balanceDate, creditLeft })
       .where(eq(accounts.id, accountId));
 
     return NextResponse.json({

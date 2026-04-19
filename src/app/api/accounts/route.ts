@@ -92,6 +92,7 @@ export async function GET() {
         institutionLogo: accounts.institutionLogo,
         balance: accounts.balance,
         balanceDate: accounts.balanceDate,
+        creditLeft: accounts.creditLeft,
         lastSyncedAt: accounts.lastSyncedAt,
         requisitionStatus: requisitions.status,
         maxHistoricalDays: requisitions.maxHistoricalDays,

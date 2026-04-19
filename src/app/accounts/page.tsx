@@ -27,6 +27,7 @@ interface Account {
   accountType: string | null;
   balance: number | null;
   balanceDate: string | null;
+  creditLeft: number | null;
   lastSyncedAt: string | null;
   requisitionStatus: string | null;
   maxHistoricalDays: number | null;
@@ -630,6 +631,11 @@ function AccountsContent() {
                               as of {account.balanceDate}
                             </span>
                           )}
+                        </p>
+                      )}
+                      {account.accountType === "credit_card" && account.creditLeft != null && (
+                        <p className="text-xs text-muted">
+                          {formatCurrency(account.creditLeft, account.currency || "GBP")} credit left
                         </p>
                       )}
                       <p className="text-sm text-muted mt-0.5">
