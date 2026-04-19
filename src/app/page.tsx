@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useChartColors } from "@/lib/use-chart-colors";
 import { TransactionTable } from "@/components/transactions/transaction-table";
@@ -162,13 +163,6 @@ export default function DashboardPage() {
   })();
 
   async function handleCategoryClick(cat: SelectedCategory) {
-    // Toggle off if clicking the same category
-    if (selectedCategory?.categoryId === cat.categoryId) {
-      setSelectedCategory(null);
-      setCategoryTxs([]);
-      return;
-    }
-
     setSelectedCategory(cat);
     setCategoryTxs([]);
     setCategoryTxLoading(true);
@@ -427,51 +421,66 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Category transactions (inline, below charts) */}
-          {selectedCategory && (
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block w-3 h-3 rounded-full"
-                    style={{ backgroundColor: selectedCategory.categoryColor }}
-                  />
-                  <h2 className="text-sm font-medium">
-                    {selectedCategory.categoryName}
-                  </h2>
-                  <span className="text-xs text-muted">
-                    {selectedCategory.count} transaction{selectedCategory.count !== 1 ? "s" : ""}
-                    {" "}&middot; {formatCurrency(selectedCategory.total)}
-                  </span>
-                </div>
-                <button
-                  onClick={() => { setSelectedCategory(null); setCategoryTxs([]); }}
-                  className="p-1 rounded hover:bg-foreground/5 text-muted hover:text-foreground transition-colors"
-                  title="Close"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-              {categoryTxLoading ? (
-                <p className="text-sm text-muted py-4">Loading transactions...</p>
-              ) : categoryTxs.length === 0 ? (
-                <p className="text-sm text-muted py-4">No transactions found.</p>
-              ) : (
-                <TransactionTable
-                  transactions={categoryTxs}
-                  categories={categories}
-                  onCategoryChange={() => {
-                    loadData();
-                    // Re-fetch the category transactions too
-                    if (selectedCategory) handleCategoryClick(selectedCategory);
-                  }}
-                />
-              )}
-            </div>
-          )}
+          {/* Category transactions modal */}
+          <Dialog.Root
+            open={!!selectedCategory}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedCategory(null);
+                setCategoryTxs([]);
+              }
+            }}
+          >
+            <Dialog.Portal>
+              <Dialog.Backdrop className="fixed inset-0 bg-black/50 z-40 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 transition-opacity duration-150" />
+              <Dialog.Popup className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(1100px,calc(100vw-2rem))] max-h-[calc(100vh-4rem)] flex flex-col bg-card border border-border rounded-xl shadow-xl z-50 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[ending-style]:scale-95 transition-[opacity,transform] duration-150">
+                {selectedCategory && (
+                  <>
+                    <div className="flex items-center justify-between p-6 pb-4 border-b border-border">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block w-3 h-3 rounded-full"
+                          style={{ backgroundColor: selectedCategory.categoryColor }}
+                        />
+                        <Dialog.Title className="text-sm font-medium">
+                          {selectedCategory.categoryName}
+                        </Dialog.Title>
+                        <span className="text-xs text-muted">
+                          {selectedCategory.count} transaction{selectedCategory.count !== 1 ? "s" : ""}
+                          {" "}&middot; {formatCurrency(selectedCategory.total)}
+                        </span>
+                      </div>
+                      <Dialog.Close
+                        className="p-1 rounded hover:bg-foreground/5 text-muted hover:text-foreground transition-colors"
+                        aria-label="Close"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </Dialog.Close>
+                    </div>
+                    <div className="overflow-y-auto p-6 pt-4">
+                      {categoryTxLoading ? (
+                        <p className="text-sm text-muted py-4">Loading transactions...</p>
+                      ) : categoryTxs.length === 0 ? (
+                        <p className="text-sm text-muted py-4">No transactions found.</p>
+                      ) : (
+                        <TransactionTable
+                          transactions={categoryTxs}
+                          categories={categories}
+                          onCategoryChange={() => {
+                            loadData();
+                            if (selectedCategory) handleCategoryClick(selectedCategory);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </>
+                )}
+              </Dialog.Popup>
+            </Dialog.Portal>
+          </Dialog.Root>
 
           {/* Top merchants & Income sources */}
           <div className="grid grid-cols-2 gap-6">
