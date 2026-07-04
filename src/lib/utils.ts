@@ -82,6 +82,44 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(" ");
 }
 
+// GoCardless requisition statuses that mean the connection can no longer be
+// used: EX (expired), SU (suspended after repeated failures), RJ (rejected).
+const DEAD_REQUISITION_STATUSES = ["EX", "SU", "RJ"];
+
+/**
+ * Days of API access remaining for a bank connection, based on when the
+ * requisition was created and how long the bank grants access for.
+ * Returns null when the inputs needed to compute it aren't available,
+ * or 0 once the access window has lapsed.
+ */
+export function accessDaysRemaining(
+  connectedAt: string | Date | null | undefined,
+  accessValidForDays: number | null | undefined
+): number | null {
+  if (connectedAt == null || accessValidForDays == null) return null;
+  const connected =
+    typeof connectedAt === "string" ? new Date(connectedAt) : connectedAt;
+  const expiresAt = new Date(connected.getTime() + accessValidForDays * 86400000);
+  return Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86400000));
+}
+
+/**
+ * Whether a bank connection has expired and needs reconnecting. True when the
+ * requisition is in a dead state, or when the access window has fully lapsed.
+ * Unknown/incomplete data is treated as not-expired so syncing isn't blocked
+ * on connections we can't evaluate.
+ */
+export function isConnectionExpired(
+  requisitionStatus: string | null | undefined,
+  connectedAt: string | Date | null | undefined,
+  accessValidForDays: number | null | undefined
+): boolean {
+  if (requisitionStatus && DEAD_REQUISITION_STATUSES.includes(requisitionStatus)) {
+    return true;
+  }
+  return accessDaysRemaining(connectedAt, accessValidForDays) === 0;
+}
+
 /**
  * Derive a sensible search pattern from a merchant/transaction name.
  *

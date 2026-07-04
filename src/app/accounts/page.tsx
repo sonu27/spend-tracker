@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { accessDaysRemaining, isConnectionExpired } from "@/lib/utils";
 
 interface Institution {
   id: string;
@@ -102,6 +103,7 @@ function AccountsContent() {
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [syncResults, setSyncResults] = useState<Record<string, SyncResult>>({});
   const [connecting, setConnecting] = useState(false);
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null);
   const [connectMethod, setConnectMethod] = useState<ConnectMethod>("phone");
   const [pendingRequisition, setPendingRequisition] = useState<PendingRequisition | null>(null);
   const [pollStatus, setPollStatus] = useState<string>("waiting");
@@ -232,6 +234,37 @@ function AccountsContent() {
     setPollStatus("waiting");
   }
 
+  // Reconnect an expired account: start a fresh authentication for the same
+  // bank. The callback re-points the existing account to the new requisition,
+  // so transactions and settings are preserved and the access window resets.
+  async function reconnectAccount(account: Account) {
+    setReconnectingId(account.id);
+    try {
+      const res = await fetch("/api/gocardless/requisitions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institutionId: account.institutionId,
+          maxHistoricalDays: account.maxHistoricalDays ?? undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingRequisition({
+          id: data.id,
+          link: data.link,
+          institutionId: account.institutionId,
+          institutionName: account.institutionName || account.institutionId,
+        });
+        startPolling(data.id);
+      }
+    } catch (err) {
+      console.error("Failed to reconnect account:", err);
+    } finally {
+      setReconnectingId(null);
+    }
+  }
+
   async function syncAccount(accountId: string) {
     setSyncing((prev) => ({ ...prev, [accountId]: true }));
     try {
@@ -293,9 +326,14 @@ function AccountsContent() {
   const [syncingAll, setSyncingAll] = useState(false);
 
   async function syncAll() {
-    if (accounts.length === 0) return;
+    // Skip expired connections — they can't sync until reconnected.
+    const active = accounts.filter(
+      (a) =>
+        !isConnectionExpired(a.requisitionStatus, a.connectedAt, a.accessValidForDays)
+    );
+    if (active.length === 0) return;
     setSyncingAll(true);
-    await Promise.all(accounts.map((account) => syncAccount(account.id)));
+    await Promise.all(active.map((account) => syncAccount(account.id)));
     await loadAccounts();
     setSyncingAll(false);
   }
@@ -335,6 +373,11 @@ function AccountsContent() {
     inst.name.toLowerCase().includes(bankSearch.toLowerCase())
   );
 
+  const expiredCount = accounts.filter((a) =>
+    isConnectionExpired(a.requisitionStatus, a.connectedAt, a.accessValidForDays)
+  ).length;
+  const hasSyncable = accounts.length - expiredCount > 0;
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -343,8 +386,9 @@ function AccountsContent() {
           {accounts.length > 0 && (
             <button
               onClick={syncAll}
-              disabled={syncingAll}
-              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-foreground/5 transition-colors disabled:opacity-50"
+              disabled={syncingAll || !hasSyncable}
+              title={!hasSyncable ? "All connections have expired — reconnect to sync" : undefined}
+              className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-foreground/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {syncingAll ? "Syncing All..." : "Sync All"}
             </button>
@@ -370,10 +414,25 @@ function AccountsContent() {
         </div>
       )}
 
-      {/* QR code flow - shown when waiting for phone auth */}
+      {/* Expired-connection banner */}
+      {!loading && expiredCount > 0 && !pendingRequisition && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 rounded-lg p-4 text-sm flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          {expiredCount === 1
+            ? "1 bank connection has expired. Reconnect it below to resume syncing — your transactions are kept."
+            : `${expiredCount} bank connections have expired. Reconnect them below to resume syncing — your transactions are kept.`}
+        </div>
+      )}
+
+      {/* QR code flow - shown as a centered modal so it stays in view
+          regardless of how far down the account list you clicked Reconnect */}
       {pendingRequisition && (
-        <div className="bg-card border border-border rounded-xl p-8">
-          <div className="max-w-md mx-auto text-center space-y-6">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-md p-8 text-center space-y-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold">
               Connect {pendingRequisition.institutionName}
             </h2>
@@ -584,7 +643,13 @@ function AccountsContent() {
                 </div>
               </div>
               <div className="grid gap-4">
-                {group.accounts.map((account) => (
+                {group.accounts.map((account) => {
+                  const expired = isConnectionExpired(
+                    account.requisitionStatus,
+                    account.connectedAt,
+                    account.accessValidForDays
+                  );
+                  return (
                   <div
                     key={account.id}
                     className="bg-card border border-border rounded-xl p-6 flex items-center justify-between"
@@ -672,13 +737,28 @@ function AccountsContent() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={async () => { await syncAccount(account.id); loadAccounts(); }}
-                        disabled={syncing[account.id]}
-                        className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
-                      >
-                        {syncing[account.id] ? "Syncing..." : "Sync"}
-                      </button>
+                      {expired ? (
+                        <button
+                          onClick={() => reconnectAccount(account)}
+                          disabled={reconnectingId !== null}
+                          className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="23 4 23 10 17 10" />
+                            <polyline points="1 20 1 14 7 14" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                          </svg>
+                          {reconnectingId === account.id ? "Reconnecting..." : "Reconnect"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => { await syncAccount(account.id); loadAccounts(); }}
+                          disabled={syncing[account.id]}
+                          className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
+                        >
+                          {syncing[account.id] ? "Syncing..." : "Sync"}
+                        </button>
+                      )}
                       <button
                         onClick={() =>
                           removeAccount(
@@ -696,7 +776,8 @@ function AccountsContent() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -749,13 +830,7 @@ function AccessBadge({
   accessValidForDays: number;
   connectedAt: string;
 }) {
-  const connected = new Date(connectedAt);
-  const expiresAt = new Date(connected.getTime() + accessValidForDays * 86400000);
-  const now = new Date();
-  const daysRemaining = Math.max(
-    0,
-    Math.ceil((expiresAt.getTime() - now.getTime()) / 86400000)
-  );
+  const daysRemaining = accessDaysRemaining(connectedAt, accessValidForDays) ?? 0;
   const isExpiringSoon = daysRemaining <= 7;
   const isExpired = daysRemaining === 0;
 

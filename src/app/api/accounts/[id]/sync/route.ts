@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { db } from "@/db";
-import { transactions, accounts, categoryRules, categories } from "@/db/schema";
+import { transactions, accounts, categoryRules, categories, requisitions } from "@/db/schema";
 import { getTransactions, getBalances, type RawTransaction } from "@/lib/gocardless";
+import { isConnectionExpired } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 
 // Persist raw GoCardless responses to disk for debugging — GoCardless rate-limits
@@ -105,6 +106,28 @@ export async function POST(
 
     if (account.length === 0) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    // Block syncing on an expired connection — GoCardless would reject the
+    // call anyway, so fail fast with a clear message prompting a reconnect.
+    const requisition = await db
+      .select()
+      .from(requisitions)
+      .where(eq(requisitions.id, account[0].requisitionId))
+      .limit(1);
+
+    if (
+      requisition.length > 0 &&
+      isConnectionExpired(
+        requisition[0].status,
+        requisition[0].createdAt,
+        requisition[0].accessValidForDays
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Connection expired. Please reconnect this account." },
+        { status: 409 }
+      );
     }
 
     const isCreditCard = account[0].accountType === "credit_card";

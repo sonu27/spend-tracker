@@ -58,6 +58,8 @@ export async function GET(request: Request) {
         // Institution fetch failed — falls back to null
       }
 
+      const replacedRequisitionIds = new Set<string>();
+
       for (const accountId of gcReq.accounts) {
         // Check if account already exists
         const existing = await db
@@ -66,7 +68,19 @@ export async function GET(request: Request) {
           .where(eq(accounts.id, accountId))
           .limit(1);
 
-        if (existing.length === 0) {
+        if (existing.length > 0) {
+          // Reconnect flow: the same account came back under a new
+          // requisition. Re-point it to the fresh requisition so its access
+          // window resets and syncing resumes — without touching the
+          // account's transactions or user-set nickname/type.
+          if (existing[0].requisitionId !== requisition.id) {
+            replacedRequisitionIds.add(existing[0].requisitionId);
+            await db
+              .update(accounts)
+              .set({ requisitionId: requisition.id })
+              .where(eq(accounts.id, accountId));
+          }
+        } else {
           let iban: string | null = null;
           let ownerName: string | null = null;
           let name: string | null = null;
@@ -102,6 +116,19 @@ export async function GET(request: Request) {
             institutionName,
             institutionLogo,
           });
+        }
+      }
+
+      // Drop any prior requisitions left orphaned by the re-pointing above,
+      // so repeated reconnects don't accumulate dead requisition rows.
+      for (const oldId of replacedRequisitionIds) {
+        const remaining = await db
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(eq(accounts.requisitionId, oldId))
+          .limit(1);
+        if (remaining.length === 0) {
+          await db.delete(requisitions).where(eq(requisitions.id, oldId));
         }
       }
     }
