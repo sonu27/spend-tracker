@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { transactions, categoryRules } from "@/db/schema";
-import { sql, eq } from "drizzle-orm";
+import { matchesPattern, normalizeText } from "@/lib/categorize";
+import { inArray } from "drizzle-orm";
 
 export async function POST(request: Request) {
   try {
@@ -17,26 +18,36 @@ export async function POST(request: Request) {
 
     const lowerPattern = pattern.toLowerCase();
 
-    // Turn "google cloud" into "%google%cloud%" so it matches
-    // "GOOGLE*CLOUD", "GOOGLE CLOUD", "GOOGLECLOUD" etc.
-    const words = lowerPattern.split(/\s+/).filter(Boolean);
-    const likePattern = "%" + words.join("%") + "%";
+    if (!normalizeText(lowerPattern)) {
+      return NextResponse.json(
+        { error: "pattern must contain letters or numbers" },
+        { status: 400 }
+      );
+    }
 
-    // Always match against ALL text fields — banks put merchant info
-    // in different fields inconsistently
-    const whereClause = sql`(
-      LOWER(${transactions.merchantName}) LIKE ${likePattern}
-      OR LOWER(${transactions.creditorName}) LIKE ${likePattern}
-      OR LOWER(${transactions.debtorName}) LIKE ${likePattern}
-      OR LOWER(${transactions.remittanceInfo}) LIKE ${likePattern}
-    )`;
+    // Match with the same logic sync uses, so what's applied now is what
+    // the saved rule will do to future transactions
+    const candidates = await db
+      .select({
+        id: transactions.id,
+        merchantName: transactions.merchantName,
+        creditorName: transactions.creditorName,
+        debtorName: transactions.debtorName,
+        remittanceInfo: transactions.remittanceInfo,
+      })
+      .from(transactions);
+    const matchedIds = candidates
+      .filter((tx) => matchesPattern(tx, lowerPattern))
+      .map((tx) => tx.id);
 
     // Update all matching transactions
-    const result = await db
-      .update(transactions)
-      .set({ categoryId })
-      .where(whereClause)
-      .returning({ id: transactions.id });
+    const result = matchedIds.length > 0
+      ? await db
+        .update(transactions)
+        .set({ categoryId })
+        .where(inArray(transactions.id, matchedIds))
+        .returning({ id: transactions.id })
+      : [];
 
     // Optionally create a category rule for future syncs
     let ruleId: number | null = null;

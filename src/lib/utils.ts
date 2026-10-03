@@ -78,6 +78,14 @@ export function getMerchantName(tx: {
   );
 }
 
+// Categories that move money around rather than spend it -- excluded from
+// spending totals and merchant rankings.
+export const nonSpendingCategories = ["Transfers", "Income", "Investments", "Business"];
+
+// Categories whose credits aren't income (own-account moves, card repayments,
+// investment withdrawals, director's loan) -- excluded from cash flow income.
+export const nonIncomeCategories = ["Transfers", "Investments", "Business"];
+
 export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(" ");
 }

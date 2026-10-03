@@ -8,7 +8,7 @@ const defaultCategories = [
     name: "Groceries",
     color: "#22c55e",
     rules: [
-      "tesco", "sainsbury", "asda", "aldi", "lidl",
+      "tesco", "sainsburys", "asda", "aldi", "lidl",
       "waitrose", "morrisons", "co-op", "ocado", "iceland",
     ],
   },

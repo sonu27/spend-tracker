@@ -1,23 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { transactions, categoryRules, categories } from "@/db/schema";
+import { transactions } from "@/db/schema";
+import { loadCategoryMatcher } from "@/lib/categorize";
 import { eq, isNull } from "drizzle-orm";
 
 export async function POST() {
   try {
-    // Load all rules
-    const rules = await db
-      .select({
-        id: categoryRules.id,
-        categoryId: categoryRules.categoryId,
-        pattern: categoryRules.pattern,
-      })
-      .from(categoryRules)
-      .innerJoin(categories, eq(categoryRules.categoryId, categories.id));
-
-    if (rules.length === 0) {
-      return NextResponse.json({ updated: 0, message: "No rules found" });
-    }
+    const matchCategory = await loadCategoryMatcher();
 
     // Load all uncategorized transactions
     const uncategorized = await db
@@ -27,6 +16,7 @@ export async function POST() {
         creditorName: transactions.creditorName,
         debtorName: transactions.debtorName,
         remittanceInfo: transactions.remittanceInfo,
+        merchantCategoryCode: transactions.merchantCategoryCode,
       })
       .from(transactions)
       .where(isNull(transactions.categoryId));
@@ -34,28 +24,7 @@ export async function POST() {
     let updated = 0;
 
     for (const tx of uncategorized) {
-      const targets = [
-        tx.merchantName,
-        tx.creditorName,
-        tx.debtorName,
-        tx.remittanceInfo,
-      ];
-
-      let matchedCategoryId: number | null = null;
-
-      for (const rule of rules) {
-        const words = rule.pattern.toLowerCase().split(/\s+/).filter(Boolean);
-
-        for (const target of targets) {
-          if (!target) continue;
-          const lower = target.toLowerCase();
-          if (words.every((word) => lower.includes(word))) {
-            matchedCategoryId = rule.categoryId;
-            break;
-          }
-        }
-        if (matchedCategoryId) break;
-      }
+      const matchedCategoryId = matchCategory(tx);
 
       if (matchedCategoryId) {
         await db

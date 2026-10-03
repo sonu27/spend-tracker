@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { db } from "@/db";
-import { transactions, accounts, categoryRules, categories, requisitions } from "@/db/schema";
+import { transactions, accounts, requisitions } from "@/db/schema";
 import { getTransactions, getBalances, type RawTransaction } from "@/lib/gocardless";
+import { loadCategoryMatcher } from "@/lib/categorize";
 import { isConnectionExpired } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 
@@ -50,43 +51,6 @@ function getRemittanceInfo(tx: RawTransaction): string | null {
   if (tx.additionalInformation) {
     return tx.additionalInformation;
   }
-  return null;
-}
-
-async function matchCategory(
-  merchantName: string | null,
-  creditorName: string | null,
-  debtorName: string | null,
-  remittanceInfo: string | null
-): Promise<number | null> {
-  // All fields empty — nothing to match
-  if (!merchantName && !creditorName && !debtorName && !remittanceInfo) return null;
-
-  const rules = await db
-    .select({
-      id: categoryRules.id,
-      categoryId: categoryRules.categoryId,
-      pattern: categoryRules.pattern,
-    })
-    .from(categoryRules)
-    .innerJoin(categories, eq(categoryRules.categoryId, categories.id));
-
-  // Always check every rule against ALL text fields — banks put
-  // merchant info in different fields inconsistently
-  const targets = [merchantName, creditorName, debtorName, remittanceInfo];
-
-  for (const rule of rules) {
-    const words = rule.pattern.toLowerCase().split(/\s+/).filter(Boolean);
-
-    for (const target of targets) {
-      if (!target) continue;
-      const lower = target.toLowerCase();
-      if (words.every((word) => lower.includes(word))) {
-        return rule.categoryId;
-      }
-    }
-  }
-
   return null;
 }
 
@@ -153,6 +117,8 @@ export async function POST(
       ...data.transactions.booked.map((tx) => ({ ...tx, _status: "booked" as const })),
     ];
 
+    const matchCategory = await loadCategoryMatcher();
+
     for (const tx of allTransactions) {
       const txId = getTransactionUniqueId(tx, accountId);
 
@@ -172,7 +138,13 @@ export async function POST(
       const creditorName = tx.creditorName || null;
       const debtorName = tx.debtorName || null;
       const remittanceInfo = getRemittanceInfo(tx);
-      const categoryId = await matchCategory(merchantName, creditorName, debtorName, remittanceInfo);
+      const categoryId = matchCategory({
+        merchantName,
+        creditorName,
+        debtorName,
+        remittanceInfo,
+        merchantCategoryCode: tx.merchantCategoryCode,
+      });
 
       await db.insert(transactions).values({
         transactionId: txId,

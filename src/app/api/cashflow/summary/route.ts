@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { transactions } from "@/db/schema";
-import { sql, and, gte, lte, gt, eq } from "drizzle-orm";
+import { transactions, categories } from "@/db/schema";
+import { nonIncomeCategories } from "@/lib/utils";
+import { sql, and, gte, lte, gt, eq, not, inArray } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
@@ -11,12 +12,25 @@ export async function GET(request: Request) {
     const accountId = searchParams.get("accountId");
     const groupBy = searchParams.get("groupBy") || "day";
 
+    // Find categories to exclude from income (e.g. Transfers, Investments)
+    const excludedCategories = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(inArray(categories.name, nonIncomeCategories));
+    const excludedIds = excludedCategories.map((c) => c.id);
+
     const conditions = [];
     if (dateFrom) conditions.push(gte(transactions.bookingDate, dateFrom));
     if (dateTo) conditions.push(lte(transactions.bookingDate, dateTo));
     if (accountId) conditions.push(eq(transactions.accountId, accountId));
     // Only count incoming (positive amounts = income/credits)
     conditions.push(gt(transactions.amount, 0));
+    // Exclude transfers, investments and business money
+    if (excludedIds.length > 0) {
+      conditions.push(
+        sql`(${transactions.categoryId} IS NULL OR ${not(inArray(transactions.categoryId, excludedIds))})`
+      );
+    }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 

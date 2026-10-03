@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { transactions, categories } from "@/db/schema";
+import { nonSpendingCategories } from "@/lib/utils";
 import { sql, and, gte, lte, lt, eq, not, inArray } from "drizzle-orm";
 
 export async function GET(request: Request) {
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
     const excludedCategories = await db
       .select({ id: categories.id })
       .from(categories)
-      .where(inArray(categories.name, ["Transfers", "Income", "Investments"]));
+      .where(inArray(categories.name, nonSpendingCategories));
     const excludedIds = excludedCategories.map((c) => c.id);
 
     const conditions = [];
