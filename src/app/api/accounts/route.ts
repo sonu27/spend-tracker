@@ -102,6 +102,18 @@ export async function GET() {
       .from(accounts)
       .leftJoin(requisitions, eq(accounts.requisitionId, requisitions.id));
 
+    // Sort alphabetically by bank, then by the account's display name
+    rows.sort((a, b) => {
+      const bankA = a.institutionName ?? a.institutionId;
+      const bankB = b.institutionName ?? b.institutionId;
+      const labelA = a.nickname ?? a.name ?? a.ownerName ?? "";
+      const labelB = b.nickname ?? b.name ?? b.ownerName ?? "";
+      return (
+        bankA.localeCompare(bankB, "en-GB", { sensitivity: "base" }) ||
+        labelA.localeCompare(labelB, "en-GB", { sensitivity: "base", numeric: true })
+      );
+    });
+
     return NextResponse.json(rows);
   } catch (error) {
     console.error("Failed to list accounts:", error);
