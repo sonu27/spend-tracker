@@ -19,6 +19,9 @@ export const requisitions = sqliteTable("requisitions", {
   link: text("link"),
   maxHistoricalDays: integer("max_historical_days"),
   accessValidForDays: integer("access_valid_for_days"),
+  // Set when this requisition was started via "Reconnect" on an existing
+  // account, so the callback knows which account it is replacing.
+  reconnectAccountId: text("reconnect_account_id"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

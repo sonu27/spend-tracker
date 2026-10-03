@@ -1,9 +1,49 @@
 import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { requisitions, accounts } from "@/db/schema";
+import { requisitions, accounts, transactions } from "@/db/schema";
 import { getRequisition, getAccountMetadata, getAccountDetails, getInstitution } from "@/lib/gocardless";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+
+type Account = typeof accounts.$inferSelect;
+
+// Some banks (e.g. Amex) issue a fresh account ID when the user
+// re-authenticates, so an account we already track can come back looking
+// brand new. Find the existing account it replaces, if any, so it can be
+// merged into rather than duplicated.
+async function findReplacedAccount(
+  iban: string | null,
+  reconnectAccountId: string | null,
+  requisitionId: string,
+  returnedAccountIds: string[],
+  unseenCount: number
+): Promise<Account | null> {
+  // Same account identifier under a different ID. Deliberately not limited to
+  // the same institution: e.g. a Halifax card that moved to Lloyds kept its
+  // identifier but came back under LLOYDS_LOYDGB2L.
+  if (iban) {
+    const matches = (
+      await db.select().from(accounts).where(eq(accounts.iban, iban))
+    ).filter((a) => !returnedAccountIds.includes(a.id));
+    if (matches.length === 1) return matches[0];
+  }
+
+  // Started via "Reconnect" on a specific account: if the bank returned
+  // exactly one unrecognised account, it must be the replacement. With
+  // several there's no safe way to tell which is which.
+  if (reconnectAccountId && unseenCount === 1) {
+    const rows = await db
+      .select()
+      .from(accounts)
+      .where(eq(accounts.id, reconnectAccountId))
+      .limit(1);
+    const target = rows[0];
+    // Skip if the target already came back under its own ID (re-pointed below)
+    if (target && target.requisitionId !== requisitionId) return target;
+  }
+
+  return null;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -27,6 +67,7 @@ export async function GET(request: Request) {
         .select()
         .from(requisitions)
         .where(eq(requisitions.status, "CR"))
+        .orderBy(desc(requisitions.createdAt))
         .limit(1);
       requisition = rows[0];
     }
@@ -59,6 +100,7 @@ export async function GET(request: Request) {
       }
 
       const replacedRequisitionIds = new Set<string>();
+      const unseenAccountIds: string[] = [];
 
       for (const accountId of gcReq.accounts) {
         // Check if account already exists
@@ -81,46 +123,86 @@ export async function GET(request: Request) {
               .where(eq(accounts.id, accountId));
           }
         } else {
-          let iban: string | null = null;
-          let ownerName: string | null = null;
-          let name: string | null = null;
-          let product: string | null = null;
-          let currency: string | null = null;
-
-          try {
-            const metadata = await getAccountMetadata(accountId);
-            iban = metadata.iban || null;
-            ownerName = metadata.owner_name || null;
-
-            const details = await getAccountDetails(accountId);
-            product = details.account?.product || null;
-            name =
-              details.account?.displayName ||
-              details.account?.name ||
-              product ||
-              null;
-            currency = details.account?.currency || null;
-          } catch {
-            // Some banks may not provide all details
-          }
-
-          await db.insert(accounts).values({
-            id: accountId,
-            requisitionId: requisition.id,
-            institutionId: requisition.institutionId,
-            iban,
-            ownerName,
-            name,
-            product,
-            currency,
-            institutionName,
-            institutionLogo,
-          });
+          unseenAccountIds.push(accountId);
         }
       }
 
-      // Drop any prior requisitions left orphaned by the re-pointing above,
-      // so repeated reconnects don't accumulate dead requisition rows.
+      for (const accountId of unseenAccountIds) {
+        let iban: string | null = null;
+        let ownerName: string | null = null;
+        let name: string | null = null;
+        let product: string | null = null;
+        let currency: string | null = null;
+
+        try {
+          const metadata = await getAccountMetadata(accountId);
+          iban = metadata.iban || null;
+          ownerName = metadata.owner_name || null;
+
+          const details = await getAccountDetails(accountId);
+          product = details.account?.product || null;
+          name =
+            details.account?.displayName ||
+            details.account?.name ||
+            product ||
+            null;
+          currency = details.account?.currency || null;
+        } catch {
+          // Some banks may not provide all details
+        }
+
+        const replaced = await findReplacedAccount(
+          iban,
+          requisition.reconnectAccountId,
+          requisition.id,
+          gcReq.accounts,
+          unseenAccountIds.length
+        );
+
+        if (replaced) {
+          // Move the old account over to the new ID: keep its user-set
+          // nickname/type, balance and sync state, take fresh details from
+          // the bank where available, and carry its transactions across.
+          replacedRequisitionIds.add(replaced.requisitionId);
+          await db.transaction(async (tx) => {
+            await tx.insert(accounts).values({
+              ...replaced,
+              id: accountId,
+              requisitionId: requisition.id,
+              institutionId: requisition.institutionId,
+              iban: iban ?? replaced.iban,
+              ownerName: ownerName ?? replaced.ownerName,
+              name: name ?? replaced.name,
+              product: product ?? replaced.product,
+              currency: currency ?? replaced.currency,
+              institutionName: institutionName ?? replaced.institutionName,
+              institutionLogo: institutionLogo ?? replaced.institutionLogo,
+            });
+            await tx
+              .update(transactions)
+              .set({ accountId })
+              .where(eq(transactions.accountId, replaced.id));
+            await tx.delete(accounts).where(eq(accounts.id, replaced.id));
+          });
+          continue;
+        }
+
+        await db.insert(accounts).values({
+          id: accountId,
+          requisitionId: requisition.id,
+          institutionId: requisition.institutionId,
+          iban,
+          ownerName,
+          name,
+          product,
+          currency,
+          institutionName,
+          institutionLogo,
+        });
+      }
+
+      // Drop any prior requisitions left orphaned by the re-pointing and
+      // merging above, so repeated reconnects don't accumulate dead rows.
       for (const oldId of replacedRequisitionIds) {
         const remaining = await db
           .select({ id: accounts.id })

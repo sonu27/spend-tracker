@@ -235,8 +235,9 @@ function AccountsContent() {
   }
 
   // Reconnect an expired account: start a fresh authentication for the same
-  // bank. The callback re-points the existing account to the new requisition,
-  // so transactions and settings are preserved and the access window resets.
+  // bank. The callback re-points (or, if the bank issued a new account ID,
+  // merges into) the existing account, so transactions and settings are
+  // preserved and the access window resets.
   async function reconnectAccount(account: Account) {
     setReconnectingId(account.id);
     try {
@@ -246,6 +247,7 @@ function AccountsContent() {
         body: JSON.stringify({
           institutionId: account.institutionId,
           maxHistoricalDays: account.maxHistoricalDays ?? undefined,
+          reconnectAccountId: account.id,
         }),
       });
       if (res.ok) {

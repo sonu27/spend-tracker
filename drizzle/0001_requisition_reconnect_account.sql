@@ -1,0 +1,1 @@
+ALTER TABLE `requisitions` ADD `reconnect_account_id` text;

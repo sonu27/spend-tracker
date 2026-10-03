@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { institutionId, maxHistoricalDays } = body;
+    const { institutionId, maxHistoricalDays, reconnectAccountId } = body;
 
     if (!institutionId) {
       return NextResponse.json(
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       link: result.link,
       maxHistoricalDays: agreedHistoricalDays,
       accessValidForDays: agreedAccessDays,
+      reconnectAccountId: reconnectAccountId || null,
       createdAt: new Date(),
     });
 
